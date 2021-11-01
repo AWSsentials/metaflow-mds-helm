@@ -1,0 +1,60 @@
+{{- if .Values.postgres.local.enabled -}}
+{{- $svcPort := "5432" -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "metaflow.fullname" . }}-postgres
+  labels:
+    {{- include "metaflow.labels" . | nindent 4 }}
+  {{- with .Values.postgres.local.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ports:
+  - name: postgres
+    port: {{ $svcPort }}
+    protocol: TCP
+    targetPort: {{ $svcPort }}
+  selector:
+    {{- include "metaflow.postgresSelectorLabels" . | nindent 4 }}
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "metaflow.fullname" . }}-postgres
+  labels:
+    {{- include "metaflow.labels" . | nindent 4 }}
+  {{- with .Values.postgres.local.deployment.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      {{- include "metaflow.postgresSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "metaflow.postgresSelectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - image: postgres
+        imagePullPolicy: Always
+        name: {{ include "metaflow.fullname" . }}-postgres
+        env:
+          - name: POSTGRES_DB
+            value: "{{ .Values.postgres.database | default "metaflow" }}"
+          - name: POSTGRES_USER
+            value: "{{ .Values.postgres.user | default "master" }}"
+          - name: POSTGRES_PASSWORD
+            value: "{{ required "Database password is required (for now)" .Values.postgres.password }}"
+        ports:
+        - containerPort: {{ $svcPort }}
+          protocol: TCP
+        resources: {}
+      restartPolicy: Always
+{{- end }}
